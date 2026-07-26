@@ -34,6 +34,28 @@ Physical dial (Arduino)  →  Backend (Admin SDK)  →  Firebase Remote Config  
 
 Firebase Hosting is static-only (like Vercel). Use it for the web page if you want, but this project uses Vercel.
 
+### Web Firebase config
+
+Firebase config is **not** in git (GitHub secret scanning). Use a local file or Vercel env vars.
+
+**Local:**
+```bash
+cp web/config.local.example.js web/config.local.js
+# fill in from Firebase Console → Project settings → Your apps → Web → Config
+```
+
+**Vercel:** add these environment variables, then redeploy:
+- `FIREBASE_API_KEY`
+- `FIREBASE_AUTH_DOMAIN`
+- `FIREBASE_PROJECT_ID`
+- `FIREBASE_STORAGE_BUCKET`
+- `FIREBASE_MESSAGING_SENDER_ID`
+- `FIREBASE_APP_ID`
+
+Build generates `config.local.js` from those vars automatically.
+
+**If your API key was committed:** rotate it in [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → your API key → Regenerate, then update `config.local.js` / Vercel env vars.
+
 ---
 
 ## Backend — quick start
@@ -139,6 +161,7 @@ curl -X POST http://localhost:3000/rollout \
 
 | File | How to get it |
 |------|---------------|
+| `web/config.local.js` | Copy from `web/config.local.example.js` → Firebase Console → Project settings → Your apps → Web → Config |
 | `backend/serviceAccountKey.json` | Firebase Console → Project settings → Service accounts → Generate new private key |
 | `backend/.env` | Copy from `backend/.env.example` |
 

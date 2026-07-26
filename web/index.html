@@ -74,19 +74,11 @@
       getValue,
     } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-remote-config.js";
 
-    // Drop in your Firebase web app config from:
-    // Firebase Console → Project settings → Your apps → Web app → SDK setup and configuration
-    const firebaseConfig = {
-      apiKey: "AIzaSyDmGAztdL2h69S-NrXl1llSfh0KpqIEboY",
-      authDomain: "rollout-knob.firebaseapp.com",
-      projectId: "rollout-knob",
-      storageBucket: "rollout-knob.firebasestorage.app",
-      messagingSenderId: "529369643956",
-      appId: "1:529369643956:web:a4852214f0911eb94a90e1",
-    };
+    import { firebaseConfig } from "./config.local.js";
 
     const percentageEl = document.getElementById("percentage");
     const statusEl = document.getElementById("status");
+    const REMOTE_CONFIG_KEY = "rollout_percentage";
 
     function updateDisplay(value) {
       const p = Math.max(0, Math.min(100, Number(value) || 0));
@@ -104,14 +96,16 @@
     const rc = getRemoteConfig(app);
 
     rc.settings.minimumFetchIntervalMillis = 0;
-    rc.defaultConfig = { rollout_percentage: 0 };
+    rc.defaultConfig = { [REMOTE_CONFIG_KEY]: 0 };
 
     async function refreshRollout() {
       try {
         await fetchAndActivate(rc);
-        const value = getValue(rc, "rollout_percentage").asNumber();
+        const value = getValue(rc, REMOTE_CONFIG_KEY).asNumber();
         updateDisplay(value);
-        setStatus(`Last updated: ${new Date().toLocaleString()}`);
+        setStatus(
+          `Firebase Remote Config · ${firebaseConfig.projectId} · ${REMOTE_CONFIG_KEY} · Last updated: ${new Date().toLocaleString()}`
+        );
       } catch (error) {
         setStatus(`Error: ${error.message}`);
       }

@@ -1,6 +1,7 @@
 **/arduino_secrets.h
 backend/.env
 backend/serviceAccountKey.json
+web/config.local.js
 node_modules/
 backend/node_modules/
 .DS_Store
