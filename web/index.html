@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rollout Knob</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background-color: hsl(0, 65%, 45%);
+      transition: background-color 0.6s ease;
+      color: #fff;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    #percentage {
+      font-size: clamp(6rem, 25vw, 14rem);
+      font-weight: 800;
+      line-height: 1;
+      letter-spacing: -0.04em;
+    }
+
+    #label {
+      margin-top: 0.75rem;
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.35em;
+      opacity: 0.85;
+    }
+
+    #status {
+      padding: 1rem 1.5rem 1.5rem;
+      font-size: 0.875rem;
+      opacity: 0.75;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div id="percentage">0%</div>
+    <div id="label">ROLLOUT</div>
+  </main>
+  <div id="status">Connecting…</div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+    import {
+      getRemoteConfig,
+      fetchAndActivate,
+      getValue,
+    } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-remote-config.js";
+
+    // Drop in your Firebase web app config from:
+    // Firebase Console → Project settings → Your apps → Web app → SDK setup and configuration
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID",
+    };
+
+    const percentageEl = document.getElementById("percentage");
+    const statusEl = document.getElementById("status");
+
+    function updateDisplay(value) {
+      const p = Math.max(0, Math.min(100, Number(value) || 0));
+      const hue = (p / 100) * 120;
+
+      percentageEl.textContent = `${Math.round(p)}%`;
+      document.body.style.backgroundColor = `hsl(${hue}, 65%, 45%)`;
+    }
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    const app = initializeApp(firebaseConfig);
+    const rc = getRemoteConfig(app);
+
+    rc.settings.minimumFetchIntervalMillis = 0;
+    rc.defaultConfig = { rollout_percentage: 0 };
+
+    async function refreshRollout() {
+      try {
+        await fetchAndActivate(rc);
+        const value = getValue(rc, "rollout_percentage").asNumber();
+        updateDisplay(value);
+        setStatus(`Last updated: ${new Date().toLocaleString()}`);
+      } catch (error) {
+        setStatus(`Error: ${error.message}`);
+      }
+    }
+
+    refreshRollout();
+    setInterval(refreshRollout, 10_000);
+  </script>
+</body>
+</html>
