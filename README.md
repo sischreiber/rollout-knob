@@ -2,7 +2,9 @@
 
 A physical rollout dial for Firebase Remote Config.
 
-Turn a knob → backend publishes the percentage → Firebase Remote Config → live web display on Vercel.
+Turn a knob → backend publishes the percentage → Firebase Remote Config → live web display.
+
+**Live:** https://rollout-knob.vercel.app
 
 ## Structure
 
@@ -31,48 +33,6 @@ Physical dial (Arduino)  →  Backend (Admin SDK)  →  Firebase Remote Config  
 | Live display page | ❌ No — runs on Vercel |
 
 Firebase Hosting is static-only (like Vercel). Use it for the web page if you want, but this project uses Vercel.
-
----
-
-## One-time Firebase setup
-
-Do this once when creating the project.
-
-1. Create a project in the [Firebase Console](https://console.firebase.google.com/) (e.g. `rollout-knob`).
-2. **Register a web app** (gear icon → Project settings → Your apps → Add app → Web).
-   - Do **not** enable Firebase Hosting.
-   - Copy the `firebaseConfig` object.
-3. **Remote Config:** create parameter `rollout_percentage`
-   - Type: **Number**
-   - Default: `0`
-   - Click **Save**, then **Publish changes** (values are not live until published!)
-4. Paste `firebaseConfig` into `web/index.html` (replace the `YOUR_*` placeholders).
-   - Same place in Console: **Project settings → Your apps → Web app → Config**
-
----
-
-## Web page (Vercel)
-
-**Live URL:** https://rollout-knob.vercel.app
-
-### Deploy / redeploy on Vercel
-
-1. Import the GitHub repo on [Vercel](https://vercel.com/).
-2. **Settings → General → Root Directory:** `web` → Save.
-3. **Settings → Build & Deployment:**
-   - Framework Preset: **Other**
-   - Build / Install commands: **empty**
-4. After changing Root Directory, **Deployments → Redeploy** (old deploys 404 without this).
-
-### Preview locally
-
-```bash
-cd web
-python3 -m http.server 8080
-# open http://localhost:8080
-```
-
-The page polls Remote Config every 10 seconds. After changing a value in the Console (and publishing), wait up to 10s for the display to update.
 
 ---
 
@@ -154,7 +114,7 @@ The real Arduino sketch will send the same `POST /rollout` request over WiFi lat
 
 ---
 
-## Cheat sheet (commands I always forget)
+## Cheat sheet
 
 ```bash
 # ── Web (local preview) ──
@@ -187,28 +147,3 @@ curl -X POST http://localhost:3000/rollout \
 - Remote Config changes → always click **Publish changes**
 - Web app config → Project settings → Your apps → Web → **Config**
 - Service account → Project settings → **Service accounts**
-
----
-
-## Production backend (later)
-
-For the real Arduino dial, deploy `backend/` to a Node.js host so the device can reach it over the internet:
-
-- [Railway](https://railway.app/) or [Render](https://render.com/) — easy, free tier
-- Set the same env vars (`GOOGLE_APPLICATION_CREDENTIALS` as a secret/json, `API_KEY`, `PORT`)
-- Point the Arduino (and `BACKEND_URL` in mock script) at the public URL
-
-Not on Firebase — Firebase has no Express/server hosting (only Cloud Functions, which this project doesn't use).
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| Vercel shows 404 | Root Directory = `web`, then **Redeploy** |
-| Page stuck at 0% | Check `firebaseConfig` in `web/index.html`; publish Remote Config |
-| Backend won't start | Missing `backend/.env` or `serviceAccountKey.json` |
-| Mock returns 401 | `X-API-Key` in `.env` must match what mock/curl sends |
-| Page doesn't update after mock | Wait ~10s (web polls every 10s); check backend logs for errors |
-| Remote Config change ignored | Did you click **Publish changes** in Firebase Console? |
