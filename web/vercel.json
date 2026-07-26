@@ -1,5 +1,6 @@
 {
   "framework": null,
   "buildCommand": "node generate-config.js",
-  "installCommand": ""
+  "installCommand": "",
+  "outputDirectory": "."
 }
