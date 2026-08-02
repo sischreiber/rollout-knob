@@ -109,7 +109,7 @@ app.post("/rollout", requireApiKey, async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`rollout-knob backend listening on http://localhost:${PORT}`);
   console.log("POST /rollout with { rollout_percentage: 0-100 }");
   console.log("Run `npm run mock -- 50` or `npm run mock -- --sweep` to simulate the Arduino");

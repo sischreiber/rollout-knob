@@ -12,7 +12,7 @@ Turn a knob → backend publishes the percentage → Firebase Remote Config → 
 |--------|------------|---------------|
 | **web/** | Static page that reads Remote Config and shows the rollout % | **Vercel** (production) or localhost (dev) |
 | **backend/** | Node.js API that writes `rollout_percentage` via Firebase Admin SDK | **Your machine** (dev) or **Railway / Render** (production later) |
-| **arduino/** | UNO R4 WiFi sketch (coming later) | On the physical device |
+| **arduino/** | UNO R4 WiFi sketch — KY-040 encoder + OLED, POST on button press | On the physical device |
 
 ## Data flow
 
@@ -110,7 +110,19 @@ Then watch https://rollout-knob.vercel.app — should update within ~10 seconds.
 | `GET` | `/rollout` | `X-API-Key` header | — |
 | `POST` | `/rollout` | `X-API-Key` header | `{ "rollout_percentage": 50 }` |
 
-The real Arduino sketch will send the same `POST /rollout` request over WiFi later.
+The real Arduino sketch sends the same `POST /rollout` request over WiFi on button press.
+
+---
+
+## Arduino
+
+Sketch: `arduino/rollout-knob/rollout-knob.ino` (UNO R4 WiFi, KY-040 rotary encoder, SSD1306 OLED).
+
+1. Install libraries: **WiFiS3**, **Adafruit SSD1306**, **Adafruit GFX**
+2. Copy `arduino/arduino_secrets.example.h` → `arduino/arduino_secrets.h` (gitignored)
+3. Fill in WiFi, your Mac's local IP (`SERVER_HOST`), and `API_KEY` (must match `backend/.env`)
+4. Backend must be running on the same network (`npm start`, listens on `0.0.0.0:3000`)
+5. Turn knob → **pending** → press button → **sending** → **synced** → Vercel updates within ~10s
 
 ---
 
@@ -139,6 +151,7 @@ curl -X POST http://localhost:3000/rollout \
 
 | File | How to get it |
 |------|---------------|
+| `arduino/arduino_secrets.h` | Copy from `arduino/arduino_secrets.example.h` |
 | `web/config.local.js` | Copy from `web/config.local.example.js` → Firebase Console → Project settings → Your apps → Web → Config |
 | `backend/serviceAccountKey.json` | Firebase Console → Project settings → Service accounts → Generate new private key |
 | `backend/.env` | Copy from `backend/.env.example` |
