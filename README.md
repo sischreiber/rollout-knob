@@ -113,4 +113,4 @@ curl -X POST http://localhost:3000/rollout \
 
 ## About
 
-A side project I mostly built for myself and my kids to play with. The full pin layout, sketch and backend setup live in this repo, so it can be rebuilt from scratch.
+A side project I mostly built for myself and my kids to play with. Vibecoded throughout with Claude and Cursor. The full pin layout, sketch and backend setup live in this repo, so it can be rebuilt from scratch.
