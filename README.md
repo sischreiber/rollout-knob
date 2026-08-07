@@ -1,85 +1,61 @@
 # rollout-knob
 
-A physical rollout dial for Firebase Remote Config.
+rollout-knob is a small hardware side project that puts a physical dial in front of Firebase Remote Config. Instead of changing a feature's rollout percentage in the Firebase Console, you turn a mechanical knob and watch the value go live on a web page.
 
-Turn a knob → backend publishes the percentage → Firebase Remote Config → live web display.
+A KY-040 rotary encoder sets the percentage, an OLED shows it, a Node.js backend writes it into Remote Config, and a static page reflects the change on its next poll. The whole loop runs on my own hardware and network.
 
-**Live:** https://rollout-knob.vercel.app
+## How a knob turn reaches the live web page
+
+A knob turn travels through four systems before it shows up on the page:
+
+1. Read the KY-040 encoder and hold the change as **pending** (no write yet)
+2. Press the button to commit — the sketch fires a single `POST /rollout` over WiFi
+3. Backend validates the `X-API-Key` header, then publishes via Firebase Admin SDK (writes `rollout_percentage` straight into Remote Config — no manual Console publish per turn)
+4. OLED steps through **pending → sending → synced** so the device state is always visible
+5. Web page polls Remote Config every 10 seconds and reflects the new value on its next poll
 
 ## Structure
 
-| Folder | What it is | Where it runs |
-|--------|------------|---------------|
-| **web/** | Static page that reads Remote Config and shows the rollout % | **Vercel** (production) or localhost (dev) |
-| **backend/** | Node.js API that writes `rollout_percentage` via Firebase Admin SDK | **Your machine** (dev) or **Railway / Render** (production later) |
-| **arduino/** | UNO R4 WiFi sketch — KY-040 encoder + OLED, POST on button press | On the physical device |
+| Folder       | What it is                                                          | Where it runs                               |
+| ------------ | ------------------------------------------------------------------- | ------------------------------------------- |
+| **arduino/** | UNO R4 WiFi sketch — KY-040 encoder + OLED, POSTs on button press   | On the physical device                      |
+| **backend/** | Node.js/Express API that writes `rollout_percentage` via Admin SDK  | Locally, on the same network as the Arduino |
+| **web/**     | Static page that reads Remote Config and shows the rollout %        | Vercel                                      |
 
-## Data flow
+## Arduino
 
-```
-Physical dial (Arduino)  →  Backend (Admin SDK)  →  Firebase Remote Config  →  Web page (reads live)
-        ↑ mock-arduino.js simulates this step today
-```
+An Arduino sketch (C++) runs on the UNO R4 WiFi. It reads the KY-040 rotary encoder into a value from 0 to 100 and shows it on the SSD1306 OLED. On a button press it POSTs that value to the backend over WiFi.
 
-## What runs on Firebase?
+The fiddly parts live in the sketch: debouncing the mechanical button, tracking turn direction, and stepping through the pending → sending → synced states so the display always shows where the value stands.
 
-**Firebase stores and serves Remote Config** — it does not run your backend.
+Sketch: `arduino/rollout-knob/rollout-knob.ino`.
 
-| Component | On Firebase? |
-|-----------|--------------|
-| Remote Config (`rollout_percentage`) | ✅ Yes |
-| Web app config (apiKey, projectId, …) | ✅ Yes (just config, not hosting) |
-| Backend Express server | ❌ No — runs locally or on Railway/Render/etc. |
-| Live display page | ❌ No — runs on Vercel |
+1. Install libraries: **WiFiS3**, **Adafruit SSD1306**, **Adafruit GFX**
+2. Copy `arduino/arduino_secrets.example.h` → `arduino/arduino_secrets.h` (gitignored)
+3. Fill in WiFi, your Mac's local IP (`SERVER_HOST`), and `API_KEY` (must match `backend/.env`)
+4. Backend must be running on the same network (`npm start`, listens on `0.0.0.0:3000`)
+5. Turn knob → **pending** → press button → **sending** → **synced** → Vercel updates within ~10s
 
-Firebase Hosting is static-only (like Vercel). Use it for the web page if you want, but this project uses Vercel.
+## Backend
 
----
-
-## Backend — quick start
-
-The backend accepts a rollout value (from the Arduino or mock script) and **publishes** it to Remote Config. The web page then picks it up on its next poll.
+A small Node.js/Express server runs locally on the same network as the Arduino. It exposes an API-key-protected `POST /rollout`, validates the `X-API-Key` header, and writes the percentage into Remote Config through the Firebase Admin SDK. No manual Console publish needed on each turn. A mock script stands in for the hardware, so the whole pipeline is testable without the physical knob.
 
 ### One-time backend setup
 
 1. **Service account key** (Admin SDK credentials)
    - Firebase Console → **Project settings → Service accounts**
    - **Generate new private key** → save as `backend/serviceAccountKey.json`
-   - ⚠️ Gitignored — never commit this file
+   - Gitignored — never commit this file
 
-2. **Environment file**
-   ```bash
-   cp backend/.env.example backend/.env
-   ```
-   Edit `backend/.env`:
-   ```env
-   PORT=3000
-   GOOGLE_APPLICATION_CREDENTIALS=./serviceAccountKey.json
-   API_KEY=pick-a-long-random-string
-   BACKEND_URL=http://localhost:3000
-   ```
+2. **Environment file** — `cp backend/.env.example backend/.env` and fill in the values
 
-3. **Install dependencies** (first time only)
-   ```bash
-   cd backend
-   npm install
-   ```
+3. **Install dependencies** (first time only) — `cd backend && npm install`
 
 ### Start the backend
 
 ```bash
 cd backend
 npm start
-```
-
-You should see:
-```
-rollout-knob backend listening on http://localhost:3000
-```
-
-Health check (no auth):
-```bash
-curl http://localhost:3000/health
 ```
 
 ### Mock the Arduino (no hardware needed)
@@ -92,41 +68,27 @@ npm run mock -- 50          # send 50% once
 npm run mock -- --sweep     # cycle 0→100 in steps of 5, every 2s
 ```
 
-Or with curl:
-```bash
-curl -X POST http://localhost:3000/rollout \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: YOUR_API_KEY_FROM_ENV" \
-  -d '{"rollout_percentage": 75}'
-```
-
 Then watch https://rollout-knob.vercel.app — should update within ~10 seconds.
 
-### Backend API
+## Firebase
 
-| Method | Path | Auth | Body |
-|--------|------|------|------|
-| `GET` | `/health` | none | — |
-| `GET` | `/rollout` | `X-API-Key` header | — |
-| `POST` | `/rollout` | `X-API-Key` header | `{ "rollout_percentage": 50 }` |
+Remote Config holds `rollout_percentage` as the single source of truth. Normally you'd change that value in the Firebase Console. The twist here is that it gets set with a mechanical rotary knob instead.
 
-The real Arduino sketch sends the same `POST /rollout` request over WiFi on button press.
+Firebase only stores and serves the config; it doesn't run the backend. Create the `rollout_percentage` parameter (Number) once in the Console and publish it — after that, the backend publishes each knob turn automatically via the Admin SDK.
 
----
+## The web page
 
-## Arduino
+**Live:** https://rollout-knob.vercel.app
 
-Sketch: `arduino/rollout-knob/rollout-knob.ino` (UNO R4 WiFi, KY-040 rotary encoder, SSD1306 OLED).
+A plain static page on Vercel polls `rollout_percentage` every 10 seconds through the Firebase Web SDK and displays it with a grey-to-green background gradient. When the value changes, the page catches up on its next poll. From turning the knob to the value showing up takes about ten seconds — mostly the polling interval, not the transfer.
 
-1. Install libraries: **WiFiS3**, **Adafruit SSD1306**, **Adafruit GFX**
-2. Copy `arduino/arduino_secrets.example.h` → `arduino/arduino_secrets.h` (gitignored)
-3. Fill in WiFi, your Mac's local IP (`SERVER_HOST`), and `API_KEY` (must match `backend/.env`)
-4. Backend must be running on the same network (`npm start`, listens on `0.0.0.0:3000`)
-5. Turn knob → **pending** → press button → **sending** → **synced** → Vercel updates within ~10s
+**Local:** copy `web/config.local.example.js` → `web/config.local.js` and fill in your Firebase web app config.
 
----
+**Vercel:** set `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_STORAGE_BUCKET`, `FIREBASE_MESSAGING_SENDER_ID`, and `FIREBASE_APP_ID` as environment variables — the build generates `config.local.js` from them.
 
 ## Cheat sheet
+
+Because I tend to forget terminal commands, here's everything in one place:
 
 ```bash
 # ── Web (local preview) ──
@@ -147,17 +109,8 @@ curl -X POST http://localhost:3000/rollout \
   -d '{"rollout_percentage": 42}'
 ```
 
-**Files you must create locally (never in git):**
+**Local files (gitignored):** `arduino/arduino_secrets.h`, `backend/.env`, `backend/serviceAccountKey.json`, `web/config.local.js`
 
-| File | How to get it |
-|------|---------------|
-| `arduino/arduino_secrets.h` | Copy from `arduino/arduino_secrets.example.h` |
-| `web/config.local.js` | Copy from `web/config.local.example.js` → Firebase Console → Project settings → Your apps → Web → Config |
-| `backend/serviceAccountKey.json` | Firebase Console → Project settings → Service accounts → Generate new private key |
-| `backend/.env` | Copy from `backend/.env.example` |
+## About
 
-**Firebase Console reminders:**
-
-- Remote Config changes → always click **Publish changes**
-- Web app config → Project settings → Your apps → Web → **Config**
-- Service account → Project settings → **Service accounts**
+A side project I mostly built for myself and my kids to play with. The full pin layout, sketch and backend setup live in this repo, so it can be rebuilt from scratch.
